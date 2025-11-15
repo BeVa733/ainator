@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "akinator.h"
+#include "dump_akinator.h"
 
 node_t* head = NULL;
 
@@ -24,7 +25,12 @@ const int command_count = sizeof(command_table) / sizeof(command_table[0]);
 
 int main()
 {
+    tree_dump_init();
+
     head = read_tree("tree_text.txt");
+
+    TREE_VERIFY
+
     printf("Вас приветствует Акинатор!\nБаза знаний загружена успешно\n\n");
 
     while (true)
@@ -47,6 +53,8 @@ int main()
         if(user_cmd == EXIT)
             break;
     }
+
+    tree_dump_close();
 
     return 0;
 }

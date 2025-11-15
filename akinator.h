@@ -56,6 +56,7 @@ ssize_t getline_simple(char **line, size_t *capacity, FILE *fp);
 void place_after(node_t* node_before, node_t* new_node, enum ans_info answer);
 void tree_dtor(node_t* node);
 void tree_graph(node_t* node);
+void tree_graph_to_file(node_t* node, const char* filename_prefix);
 void tree_dot(FILE* f, node_t* node);
 
 void append_near (node_t* current, char* users_object, char* users_question);
@@ -79,7 +80,7 @@ void tree_guess         (node_t* node);
 void get_definition     (const char* object_name);
 void compare_objects    (const char* object1, const char* object2);
 void print_definition   (path_t* path);
-void print_comparison   (path_t* path_1, path_t* path_2);
+void print_comparison   (path_t* path_1, path_t* path_2, const char* object1, const char* object2);
 
 void command_guess     (void);
 void command_definition(void);

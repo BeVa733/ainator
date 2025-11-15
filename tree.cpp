@@ -1,8 +1,11 @@
 #include <TXLib.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
 #include "akinator.h"
+#include "dump_akinator.h"
 
 node_t* node_ctor(void)
 {
@@ -122,9 +125,22 @@ void tree_dot(FILE* dot_file, node_t* node)
 
 void tree_graph(node_t* node)
 {
-    FILE* dot_file = fopen("tree.dot", "w");
+    tree_graph_to_file(node, "tree");
+}
+
+void tree_graph_to_file(node_t* node, const char* filename_prefix)
+{
+    if (!node) return;
+
+    char dot_filename[STR_MAX_LEN] = "";
+    char png_filename[STR_MAX_LEN] = "";
+
+    sprintf(dot_filename, "%s.dot", filename_prefix);
+    sprintf(png_filename, "%s.png", filename_prefix);
+
+    FILE* dot_file = fopen(dot_filename, "w");
     if (!dot_file) {
-        fprintf(stderr, "Cannot open file\n");
+        fprintf(stderr, "Cannot open file %s\n", dot_filename);
         return;
     }
 
@@ -136,5 +152,8 @@ void tree_graph(node_t* node)
     fprintf(dot_file, "}\n");
     fclose(dot_file);
 
-    system("dot -Tpng tree.dot -o tree.png");
+    char command[STR_MAX_LEN * 2] = "";
+    sprintf(command, "dot -Tpng %s -o %s", dot_filename, png_filename);
+
+    system(command);
 }

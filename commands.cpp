@@ -6,11 +6,14 @@
 #include <assert.h>
 
 #include "akinator.h"
+#include "dump_akinator.h"
 
 void command_guess(void)
 {
     printf("\n=== Режим отгадывания ===\n");
+    tree_dump_add_info("Before guess()", head);
     tree_guess(head);
+    tree_dump_add_info("After guess()", head);
 }
 
 void command_definition(void)
@@ -22,7 +25,10 @@ void command_definition(void)
     size_t str_len = 50;
     getline_simple(&object_name, &str_len, stdin);
 
+    tree_dump_add_info("Before definition()", head);
     get_definition(object_name);
+    tree_dump_add_info("After definition()", head);
+
     free(object_name);
 }
 
@@ -40,7 +46,10 @@ void command_compare(void)
     char* object2 = NULL;
     getline_simple(&object2, &str_len, stdin);
 
+    tree_dump_add_info("Before compare()", head);
     compare_objects(object1, object2);
+    tree_dump_add_info("After compare()", head);
+
     free(object1);
     free(object2);
 }
@@ -48,27 +57,32 @@ void command_compare(void)
 void command_show_tree(void)
 {
     printf("\n=== Визуализация дерева ===\n");
+    tree_dump_add_info("Manual tree view", head);
     tree_graph(head);
-    printf("Дерево знаний сохранено в tree.png\n");
+    system("tree.png");
 }
 
 void command_exit(void)
 {
-    printf("\nСохранение базы знаний...\n");
+    printf("\nСохранение базы данных...\n");
+
+    tree_dump_add_info("Before exit", head);
     tree_save(head, "tree_text.txt");
     tree_dtor(head);
+
     printf("До свидания!\n");
 }
 
 node_t* find_object(node_t* node, const char* name)
 {
-    if (node == NULL) return NULL;
+    assert(node);
 
     if (node->info == OBJECT && strcmp(node->data, name) == 0)
         return node;
 
     node_t* found = find_object(node->yes, name);
-    if (found != NULL) return found;
+    if (found)
+        return found;
 
     return find_object(node->no, name);
 }
@@ -82,7 +96,7 @@ bool find_path(node_t* node, const char* target, path_t* path)
     return find_path_recursive(node, target, path);
 }
 
-bool find_path_recursive(node_t* node, const char* target, path_t* path)
+bool find_path_recursive(node_t* node, const char* target, path_t* path)  //TODO cycle with stack
 {
     if (node == NULL)
         return false;
@@ -218,7 +232,7 @@ void compare_objects(const char* object1, const char* object2)
     bool found2 = find_path(head, object2, &path_2);
 
     if (found1 && found2)
-        print_comparison(&path_1, &path_2);
+        print_comparison(&path_1, &path_2, object1, object2);
 
     else
     {
@@ -236,7 +250,7 @@ void compare_objects(const char* object1, const char* object2)
     free(path_2.path);
 }
 
-void print_comparison (path_t* path_1, path_t* path_2)
+void print_comparison (path_t* path_1, path_t* path_2, const char* object1, const char* object2)
 {
     int common_length = 0;
     while (common_length < path_1->size && common_length < path_2->size)
@@ -247,7 +261,7 @@ void print_comparison (path_t* path_1, path_t* path_2)
         common_length++;
     }
 
-    printf("Сравнение:\n");
+    printf("Сравнение %s и %s:\n", object1, object2);
 
     if (common_length > 0)
     {
@@ -262,7 +276,7 @@ void print_comparison (path_t* path_1, path_t* path_2)
 
     if (common_length < path_1->size)
     {
-        printf("Но %s: ", path_1->path[common_length]);
+        printf("Но %s: ", object1);
         for (int i = common_length; i < path_1->size; i++)
         {
             printf("%s", path_1->path[i]);
@@ -273,7 +287,7 @@ void print_comparison (path_t* path_1, path_t* path_2)
 
     if (common_length < path_2->size)
     {
-        printf("А %s: ", path_2->path[common_length]);
+        printf("А %s: ", object2);
         for (int i = common_length; i < path_2->size; i++)
         {
             printf("%s", path_2->path[i]);
