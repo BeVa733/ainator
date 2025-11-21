@@ -3,7 +3,7 @@
 
 #include "akinator.h"
 
-const int STR_MAX_LEN = 100;
+const int STR_MAX_LEN = 1000;
 
 extern unsigned int verify_result;
 extern char error_msg[STR_MAX_LEN];

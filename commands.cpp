@@ -7,10 +7,16 @@
 
 #include "akinator.h"
 #include "dump_akinator.h"
+#include "graphics.h"
+
+#define STACK_TYPE node_t*
+#include "stack.h"
+
+#include "commands.h"
 
 void command_guess(void)
 {
-    printf("\n=== Режим отгадывания ===\n");
+    text_out("\nРежим отгадывания\n");
     tree_dump_add_info("Before guess()", head);
     tree_guess(head);
     tree_dump_add_info("After guess()", head);
@@ -18,12 +24,11 @@ void command_guess(void)
 
 void command_definition(void)
 {
-    printf("\n=== Режим определения ===\n");
-    printf("Введите имя объекта для определения: ");
+    text_out("\nРежим определения\n");
+    char question[STR_MAX_LEN] = "Введите имя объекта для определения: \n";
+    text_out(question);
 
-    char* object_name = NULL;
-    size_t str_len = 50;
-    getline_simple(&object_name, &str_len, stdin);
+    char* object_name = strdup (myInputBox(question));
 
     tree_dump_add_info("Before definition()", head);
     get_definition(object_name);
@@ -34,17 +39,13 @@ void command_definition(void)
 
 void command_compare(void)
 {
-    printf("\n=== Режим сравнения ===\n");
-    printf("Введите имя первого объекта: ");
+    text_out("\nРежим сравнения\n");
 
-    char* object1 = NULL;
-    size_t str_len = 50;
-    getline_simple(&object1, &str_len, stdin);
+    text_out("Введите имя первого объекта: \n");
+    char* object1 = strdup (myInputBox());
 
-    printf("Введите имя второго объекта: ");
-
-    char* object2 = NULL;
-    getline_simple(&object2, &str_len, stdin);
+    text_out("Введите имя второго объекта: \n");
+    char* object2 = strdup (myInputBox());
 
     tree_dump_add_info("Before compare()", head);
     compare_objects(object1, object2);
@@ -56,7 +57,7 @@ void command_compare(void)
 
 void command_show_tree(void)
 {
-    printf("\n=== Визуализация дерева ===\n");
+    text_out("\nВизуализация дерева\n");
     tree_dump_add_info("Manual tree view", head);
     tree_graph(head);
     system("tree.png");
@@ -64,13 +65,15 @@ void command_show_tree(void)
 
 void command_exit(void)
 {
-    printf("\nСохранение базы данных...\n");
+    text_out("\nСохранение базы данных...\n");
 
     tree_dump_add_info("Before exit", head);
     tree_save(head, "tree_text.txt");
     tree_dtor(head);
 
-    printf("До свидания!\n");
+    txPlaySound("sounds\\bye.wav");
+    text_out("До свидания!\n");
+    txSleep(500);
 }
 
 node_t* find_object(node_t* node, const char* name)
@@ -87,59 +90,33 @@ node_t* find_object(node_t* node, const char* name)
     return find_object(node->no, name);
 }
 
-bool find_path(node_t* node, const char* target, path_t* path)
-{
-    path->size = 0;
-    path->capacity = 10;
-    path->path = (char**)calloc(path->capacity, sizeof(char*));
-
-    return find_path_recursive(node, target, path);
-}
-
-bool find_path_recursive(node_t* node, const char* target, path_t* path)  //TODO cycle with stack
+bool find_path_stack(node_t* node, const char* target, stack_t* stk)
 {
     if (node == NULL)
         return false;
 
     if (node->info == OBJECT && strcmp(node->data, target) == 0)
+    {
+        stack_push(stk, node);
         return true;
+    }
 
     if (node->no != NULL)
     {
-        if (path->size + 1 >= path->capacity)
+        if (find_path_stack(node->no, target, stk))
         {
-            path->capacity *= 2;
-            path->path = (char**)realloc(path->path, path->capacity * sizeof(char*));
-        }
-
-        char* negative_question = (char*)calloc(strlen(node->data) + 10, sizeof(char));
-        sprintf(negative_question, "не %s", node->data);
-        path->path[path->size] = negative_question;
-        path->size++;
-
-        if (find_path_recursive(node->no, target, path))
+            stack_push(stk, node);
             return true;
-
-        path->size--;
-        free(negative_question);
+        }
     }
 
     if (node->yes != NULL)
     {
-        if (path->size + 1 >= path->capacity)
+        if (find_path_stack(node->yes, target, stk))
         {
-            path->capacity *= 2;
-            path->path = (char**)realloc(path->path, path->capacity * sizeof(char*));
-        }
-
-        path->path[path->size] = strdup(node->data);
-        path->size++;
-
-        if (find_path_recursive(node->yes, target, path))
+            stack_push(stk, node);
             return true;
-
-        path->size--;
-        free(path->path[path->size]);
+        }
     }
 
     return false;
@@ -148,39 +125,45 @@ bool find_path_recursive(node_t* node, const char* target, path_t* path)  //TODO
 
 void tree_guess(node_t* node)
 {
+    char temp_output[STR_MAX_LEN] = "";
+
     if (node == NULL)
         return;
 
     if (node->info == OBJECT)
     {
-        printf("Вы загадали %s?\n", node->data);
+        sprintf(temp_output, "Вы загадали %s?\n", node->data);
+        text_out(temp_output);
 
-        if(get_users_answer())
-            printf("Я знал!\n");
+        if(get_users_answer(temp_output))
+            make_success();
 
         else
         {
-            printf("А кого вы загадали?\n");
+            make_fail();
+            text_out("А кого вы загадали?\n");
 
             char* users_object = NULL;
             char* users_question = NULL;
-            size_t str_len = 50;
 
-            getline_simple(&users_object, &str_len, stdin);
+            users_object = strdup (myInputBox());
 
-            printf("А чем %s отличается от %s? Он... ", users_object, node->data);
-            getline_simple(&users_question, &str_len, stdin);
+            sprintf(temp_output, "А чем %s отличается от %s? Он... \n", users_object, node->data);
+            text_out(temp_output);
+
+            users_question = strdup (myInputBox());
 
             append_near(node, users_object, users_question);
-            printf("Спасибо, я запомнил\n");
+            text_out("Спасибо, я запомнил\n");
         }
     }
 
     else
     {
-        printf("%s?\n", node->data);
+        sprintf(temp_output, "%s?\n", node->data);
+        text_out(temp_output);
 
-        if(get_users_answer())
+        if(get_users_answer(temp_output, false))
             tree_guess(node->yes);
 
         else
@@ -190,109 +173,209 @@ void tree_guess(node_t* node)
 
 void get_definition(const char* object_name)
 {
-    path_t path = {};
-    if (find_path(head, object_name, &path))
-    {
-        printf("Определение для %s: ", object_name);
-        print_definition(&path);
+    stack_t path = {};
+    stack_ctor(&path, 10);
 
-        for (int i = 0; i < path.size; i++)
-            free(path.path[i]);
-        free(path.path);
-    }
+    char output[STR_MAX_LEN] = "";
+
+    if (find_path_stack(head, object_name, &path))
+        print_definition(&path, object_name);
+
     else
     {
-        printf("Объект '%s' не найден в базе знаний.\n", object_name);
+        sprintf(output, "Объект '%s' не найден в базе знаний.\n", object_name);
+        text_out(output);
     }
+
+    stack_dtor(&path);
+
 }
 
-void print_definition (path_t* path)
+void print_definition(stack_t* path, const char* object_name)
 {
     if (path->size == 0)
     {
-        printf("неизвестно\n");
+        text_out("неизвестно\n");
         return;
     }
 
-    printf("это ");
-    for (int i = 0; i < path->size; i++)
+    size_t buffer_size = STR_MAX_LEN;
+    char* definition_text = (char*)calloc(buffer_size, sizeof(char));
+    if (!definition_text)
+        return;
+
+    char temp_str[STR_MAX_LEN] = "";
+
+    snprintf(definition_text, buffer_size, "Определение для %s:\n это ", object_name);
+
+    for (int i = path->size - 2; i >= 0; i--)
     {
-        printf("%s", path->path[i]);
-        if (i < path->size - 1) printf(", ");
+        node_t* current_node = path->data[i];
+        node_t* next_node = path->data[i + 1];
+
+        if (current_node->yes == next_node)
+            snprintf(temp_str, sizeof(temp_str), "%s", current_node->data);
+
+        else if (current_node->no == next_node)
+            snprintf(temp_str, sizeof(temp_str), "не %s", current_node->data);
+
+        else
+            snprintf(temp_str, sizeof(temp_str), "%s", current_node->data);
+
+        strcat(definition_text, temp_str);
+
+        if (i > 0)
+            strcat(definition_text, ", ");
     }
-    printf(".\n");
+
+    strcat(definition_text, ".\n\nНажмите ENTER чтобы продолжить\n");
+    text_out(definition_text);
+    myInputBox(false);
+
+    free(definition_text);
 }
 
 void compare_objects(const char* object1, const char* object2)
 {
-    path_t path_1 = {};
-    path_t path_2 = {};
+    stack_t path_1 = {};
+    stack_ctor(&path_1, 10);
 
-    bool found1 = find_path(head, object1, &path_1);
-    bool found2 = find_path(head, object2, &path_2);
+    stack_t path_2 = {};
+    stack_ctor(&path_2, 10);
+
+    char error_text[STR_MAX_LEN] = "";
+
+    bool found1 = find_path_stack(head, object1, &path_1);
+    bool found2 = find_path_stack(head, object2, &path_2);
 
     if (found1 && found2)
         print_comparison(&path_1, &path_2, object1, object2);
 
     else
     {
-        if (!found1) printf("Объект '%s' не найден.\n", object1);
-        if (!found2) printf("Объект '%s' не найден.\n", object2);
+        if (!found1)
+        {
+            sprintf(error_text, "Объект '%s' не найден.\n", object1);
+            text_out(error_text);
+        }
+
+        if (!found2)
+        {
+            sprintf(error_text, "Объект '%s' не найден.\n", object2);
+            text_out(error_text);
+        }
     }
 
-    for (int i = 0; i < path_1.size; i++)
-        free(path_1.path[i]);
-
-    for (int i = 0; i < path_2.size; i++)
-        free(path_2.path[i]);
-
-    free(path_1.path);
-    free(path_2.path);
+    stack_dtor(&path_1);
+    stack_dtor(&path_2);
 }
 
-void print_comparison (path_t* path_1, path_t* path_2, const char* object1, const char* object2)
+void print_comparison(stack_t* path_1, stack_t* path_2, const char* object1, const char* object2)
 {
+    int size1 = path_1->size;
+    int size2 = path_2->size;
+
     int common_length = 0;
-    while (common_length < path_1->size && common_length < path_2->size)
+
+    for (int i = 0; i < size1 && i < size2; i++)
     {
-        if(strcmp(path_1->path[common_length], path_2->path[common_length]) != 0)
+        node_t* node1 = path_1->data[size1 - 1 - i];
+        node_t* node2 = path_2->data[size2 - 1 - i];
+
+        if (node1 != node2)
             break;
 
         common_length++;
     }
 
-    printf("Сравнение %s и %s:\n", object1, object2);
+    size_t buffer_size = STR_MAX_LEN;
+    char* compare_text = (char*)calloc(buffer_size, sizeof(char));
+    if (!compare_text)
+        return;
 
-    if (common_length > 0)
+    char temp_str[STR_MAX_LEN] = "";
+
+    snprintf(compare_text, buffer_size, "Сравнение %s и %s:\n", object1, object2);
+
+    if (common_length > 1)
     {
-        printf("Общие характеристики: ");
-        for (int i = 0; i < common_length; i++)
+        strcat(compare_text, "Они похожи тем, что ");
+        for (int i = 1; i < common_length; i++)
         {
-            printf("%s", path_1->path[i]);
-            if (i < common_length - 1) printf(", ");
+            node_t* current_node = path_1->data[size1 - 1 - i];
+            node_t* next_node = path_1->data[size1 - i];
+
+            if (current_node->yes == next_node)
+            {
+                snprintf(temp_str, sizeof(temp_str), "%s", current_node->data);
+            }
+            else
+            {
+                snprintf(temp_str, sizeof(temp_str), "не %s", current_node->data);
+            }
+
+            strcat(compare_text, temp_str);
+
+            if (i < common_length - 1)
+                strcat(compare_text, ", ");
         }
-        printf(".\n");
+        strcat(compare_text, ".\n");
     }
 
-    if (common_length < path_1->size)
+    if (common_length < size1)
     {
-        printf("Но %s: ", object1);
-        for (int i = common_length; i < path_1->size; i++)
+        snprintf(temp_str, sizeof(temp_str), "Но %s ", object1);
+        strcat(compare_text, temp_str);
+
+        for (int i = common_length; i < size1 - 1; i++)
         {
-            printf("%s", path_1->path[i]);
-            if (i < path_1->size - 1) printf(", ");
+            node_t* current_node = path_1->data[size1 - 1 - i];
+            node_t* next_node = path_1->data[size1 - i];
+
+            if (current_node->yes == next_node)
+                snprintf(temp_str, sizeof(temp_str), "%s", current_node->data);
+
+            else
+                snprintf(temp_str, sizeof(temp_str), "не %s", current_node->data);
+
+            strcat(compare_text, temp_str);
+
+            if (i < size1 - 2)
+                strcat(compare_text, ", ");
         }
-        printf(".\n");
+        strcat(compare_text, ".\n");
     }
 
-    if (common_length < path_2->size)
+    if (common_length < size2)
     {
-        printf("А %s: ", object2);
-        for (int i = common_length; i < path_2->size; i++)
+        snprintf(temp_str, sizeof(temp_str), "А %s ", object2);
+        strcat(compare_text, temp_str);
+
+        for (int i = common_length; i < size2 - 1; i++)
         {
-            printf("%s", path_2->path[i]);
-            if (i < path_2->size - 1) printf(", ");
+            node_t* current_node = path_2->data[size2 - 1 - i];
+            node_t* next_node = path_2->data[size2 - i];
+
+            if (current_node->yes == next_node)
+            {
+                snprintf(temp_str, sizeof(temp_str), "%s", current_node->data);
+            }
+            else
+            {
+                snprintf(temp_str, sizeof(temp_str), "не %s", current_node->data);
+            }
+
+            strcat(compare_text, temp_str);
+
+            if (i < size2 - 2)
+                strcat(compare_text, ", ");
         }
-        printf(".\n");
+        strcat(compare_text, ".\n");
     }
+
+    strcat(compare_text, "\nНажмите ENTER чтобы продолжить\n");
+    text_out(compare_text);
+    myInputBox(false);
+
+    free(compare_text);
 }

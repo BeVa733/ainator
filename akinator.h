@@ -32,12 +32,12 @@ enum user_commands
     EXIT       = 4
 };
 
-struct path_t
-{
-    char** path;
-    int size;
-    int capacity;
-};
+// struct path_t
+// {
+//     char** path;
+//     int size;
+//     int capacity;
+// };
 
 struct command_table_entry
 {
@@ -60,7 +60,7 @@ void tree_graph_to_file(node_t* node, const char* filename_prefix);
 void tree_dot(FILE* f, node_t* node);
 
 void append_near (node_t* current, char* users_object, char* users_question);
-bool get_users_answer (void);
+bool get_users_answer(const char* question, bool need_name = true);
 enum user_commands get_user_cmd(void);
 
 node_t* read_tree (const char* filename);
@@ -73,14 +73,8 @@ void write_node(node_t* node, FILE* file);
 
 char* cp1251_to_utf8(const char* cp1251_str);
 
-node_t* find_object     (node_t* node, const char* name);
-bool find_path          (node_t* node, const char* target, path_t* path);
-bool find_path_recursive(node_t* node, const char* target, path_t* path);
-void tree_guess         (node_t* node);
-void get_definition     (const char* object_name);
-void compare_objects    (const char* object1, const char* object2);
-void print_definition   (path_t* path);
-void print_comparison   (path_t* path_1, path_t* path_2, const char* object1, const char* object2);
+void text_out (const char* output);
+char* make_menu_text(void);
 
 void command_guess     (void);
 void command_definition(void);

@@ -9,6 +9,7 @@
 
 #include "akinator.h"
 #include "dump_akinator.h"
+#include "graphics.h"
 
 node_t* head = NULL;
 
@@ -25,24 +26,20 @@ const int command_count = sizeof(command_table) / sizeof(command_table[0]);
 
 int main()
 {
+    window_init ();
     tree_dump_init();
-
     head = read_tree("tree_text.txt");
 
     TREE_VERIFY
 
-    printf("Вас приветствует Акинатор!\nБаза знаний загружена успешно\n\n");
+    make_menu("Вас приветствует Акинатор!\nБаза знаний загружена успешно\n\n");
+    txSleep(1000);
 
     while (true)
     {
-        printf("Выберите режим:\n");
-
-        for (int i = 0; i < command_count; i++)
-        {
-            printf("[%s]%s", command_table[i].name, command_table[i].description);
-            if (i < command_count - 1) printf(", ");
-        }
-        printf(": ");
+        char* menu_text = make_menu_text();
+        make_menu(menu_text);
+        free(menu_text);
 
         enum user_commands user_cmd = get_user_cmd();
 
@@ -59,26 +56,55 @@ int main()
     return 0;
 }
 
+void text_out(const char* output)
+{
+   make_output(output);
+   // printf("%s", output);
+}
+
+char* make_menu_text(void)
+{
+    char* menu_text = (char*) calloc(STR_MAX_LEN, sizeof(char));
+    sprintf(menu_text, "Выберите режим:\n");
+
+    for (int i = 0; i < command_count; i++)
+    {
+        char text_part[STR_MAX_LEN] = "";
+
+        sprintf(text_part, "[%s]%s", command_table[i].name, command_table[i].description);
+        strcat(menu_text, text_part);
+
+        if (i < command_count - 1)
+            strcat(menu_text, ", ");
+    }
+
+    strcat(menu_text, ": ");
+
+    return menu_text;
+}
+
 enum user_commands get_user_cmd(void)
 {
-    char cmd_smbl = (char)getchar();
-    while (getchar() != '\n');
+    const char* cmd_str = (myInputBox());
+    char cmd_smbl = (char)toupper(cmd_str[0]);
+    // printf("___%c___", cmd_smbl);
 
     for (int i = 0; i < command_count; i++)
     {
         if (command_table[i].name[0] == cmd_smbl)
-        {
             return command_table[i].cmd;
-        }
     }
 
-    printf("Неизвестная команда. Попробуйте снова.\n");
+    text_out("Неизвестная команда. Попробуйте снова.\n");
+    txSleep(500);
+    char* menu_text = make_menu_text();
+    make_menu(menu_text);
+
     return get_user_cmd();
 }
 
-bool get_users_answer(void)
+bool get_users_answer(const char* question, bool need_name)
 {
-    const int LEN_STR = 10;
     const char* answer_yes[] = {"YES", "yes", "Yes", "y", "Y", "да", "Да", "ДА", "д", "Д"};
     const char* answer_no[] = {"NO", "no", "No", "n", "N", "н", "нет", "НЕТ", "Н", "Нет"};
     const int yes_count = 10;
@@ -86,9 +112,11 @@ bool get_users_answer(void)
 
     while(true)
     {
-        char answer[LEN_STR];
-        scanf("%9s", answer);
-        getchar();
+        const char* answer = NULL;
+        if (need_name)
+            answer = strdup(myInputBox());
+        else
+            answer = strdup(myInputBox(false));
 
         for (int i = 0; i < yes_count; i++)
         {
@@ -102,7 +130,9 @@ bool get_users_answer(void)
                 return false;
         }
 
-        printf("Введите YES/NO или ДА/НЕТ: ");
+        text_out("Введите YES/NO или ДА/НЕТ:\n");
+        txSleep(500);
+        text_out(question);
     }
 }
 
@@ -149,67 +179,108 @@ long int chek_file_size(FILE* file)
 
 node_t* read_node(char** curr_pos)
 {
-    if (**curr_pos  == '(')
+    // Пропускаем пробелы в начале
+    while (**curr_pos == ' ' || **curr_pos == '\t' || **curr_pos == '\n')
+        (*curr_pos)++;
+
+    if (**curr_pos == '(')
     {
         node_t* new_node = node_ctor();
         (*curr_pos)++;
 
+        // Пропускаем пробелы после открывающей скобки
+        while (**curr_pos == ' ' || **curr_pos == '\t' || **curr_pos == '\n')
+            (*curr_pos)++;
+
         if (**curr_pos == '"')
             new_node->data = read_name(curr_pos);
-
         else
         {
-            printf("Reading error\n");
+            printf("Reading error: expected '\"' but found '%c'\n", **curr_pos);
+            tree_dtor(new_node);
             return NULL;
         }
 
-        (*curr_pos) = strchr((*curr_pos), '"');
-        (*curr_pos)++;
+        // Пропускаем пробелы после данных
+        while (**curr_pos == ' ' || **curr_pos == '\t' || **curr_pos == '\n')
+            (*curr_pos)++;
 
+        // Рекурсивно читаем потомков
         new_node->no = read_node(curr_pos);
-        new_node->yes = read_node(curr_pos);
+        if (new_node->no != NULL)
+            new_node->no->parent = new_node;
 
+        new_node->yes = read_node(curr_pos);
+        if (new_node->yes != NULL)
+            new_node->yes->parent = new_node;
+
+        // Определяем тип узла
         if (new_node->no != NULL || new_node->yes != NULL)
             new_node->info = QUESTION;
         else
             new_node->info = OBJECT;
 
-        (*curr_pos)++;
+        // Пропускаем пробелы перед закрывающей скобкой
+        while (**curr_pos == ' ' || **curr_pos == '\t' || **curr_pos == '\n')
+            (*curr_pos)++;
+
+        if (**curr_pos == ')')
+            (*curr_pos)++;
+        else
+            printf("Warning: expected ')' but found '%c'\n", **curr_pos);
 
         return new_node;
     }
-
-    else if (**curr_pos == ' ' || !strncmp(++(*curr_pos), "nil", 3))
+    else if (**curr_pos == 'n' && strncmp(*curr_pos, "nil", 3) == 0)
     {
-        (*curr_pos) += 4;
+        // Нашли "nil"
+        (*curr_pos) += 3;
         return NULL;
     }
-
+    else if (**curr_pos == '\0')
+    {
+        // Конец строки
+        return NULL;
+    }
     else
     {
-        printf("empty file or reading error\n");
+        printf("Unexpected character: '%c' (0x%02x)\n", **curr_pos, (unsigned char)**curr_pos);
         return NULL;
     }
 }
 
 char* read_name(char** curr_pos)
 {
+    if (**curr_pos != '"')
+    {
+        printf("Error: expected opening quote\n");
+        return NULL;
+    }
+
     (*curr_pos)++;
 
     char* start = *curr_pos;
+    char* end = start;
 
-    *curr_pos = strchr(*curr_pos, '"');
-    if (*curr_pos == NULL)
+    while (*end != '\0' && *end != '"')
+        end++;
+
+    if (*end != '"')
     {
         printf("Error: unmatched quote\n");
         return NULL;
     }
 
-    size_t len = *curr_pos - start;
-
+    size_t len = end - start;
     char* name = (char*)calloc(len + 1, sizeof(char));
-    strncpy(name, start, len);
-    name[len] = '\0';
+
+    if (name)
+    {
+        strncpy(name, start, len);
+        name[len] = '\0';
+    }
+
+    *curr_pos = end + 1;
 
     return name;
 }
